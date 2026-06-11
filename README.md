@@ -53,6 +53,8 @@ Every option has a flag and an environment variable. Precedence is **flag > `PM2
 | Port | `-p`, `--port` | `PM2_FORWARDER_PORT`, then `PORT` | `9616` |
 | Host | `-H`, `--host` | `PM2_FORWARDER_HOST` | `127.0.0.1` |
 | Token | `-t`, `--token` | `PM2_FORWARDER_TOKEN` | _(unset → no auth)_ |
+| Tunnel | `--tunnel` | `PM2_FORWARDER_TUNNEL` | _(off)_ |
+| CF token | `--cf-token` | `CLOUDFLARED_TOKEN`, then `PM2_FORWARDER_CF_TOKEN` | _(unset)_ |
 
 ```bash
 pm2-forwarder --port 8080
@@ -79,6 +81,30 @@ The API can **stop and delete** processes and has no auth by default, so:
   ```
 
 - There is no built-in TLS. To reach it over an untrusted network, put it behind a reverse proxy that terminates HTTPS.
+
+## Hosting at home or don't want to expose your ports?
+
+Running PM2 on a box behind your home router, a NAT, or CGNAT — or just don't want to open a port on your firewall? `pm2-forwarder` can reach the public internet for you through a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/): an outbound-only connection, so there's **no port forwarding, no inbound firewall rule, and no public IP required**. The `cloudflared` binary is fetched automatically on first use.
+
+> Because a tunnel makes the process-control API reachable publicly, **if you enable a tunnel without `--token`, a random bearer token is generated, required, and printed** — so the public URL is never left open. Pass your own `--token` to choose it.
+
+**Guest tunnel** — no Cloudflare account, gives an ephemeral `https://<random>.trycloudflare.com` URL:
+
+```bash
+pm2-forwarder --tunnel
+# Cloudflare tunnel (guest) → https://abc-def-ghi.trycloudflare.com
+# Auth token (required on every request — auto-generated):
+#   <printed token>
+```
+
+**Authenticated named tunnel** — pass a Cloudflare tunnel token (same one you'd use with `cloudflared tunnel run --token`):
+
+```bash
+pm2-forwarder --cf-token "$CLOUDFLARED_TOKEN"
+# or: CLOUDFLARED_TOKEN=... pm2-forwarder
+```
+
+For a named tunnel the public hostname → origin mapping lives in the Cloudflare Zero Trust dashboard; point its ingress at `http://localhost:9616` (or whatever `--port` you use). A CF token implies `--tunnel`, so you don't need both.
 
 ## API
 

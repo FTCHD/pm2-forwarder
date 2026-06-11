@@ -16,18 +16,25 @@ OPTIONS
   -H, --host <host>    Address to bind     (env PM2_FORWARDER_HOST)             [default: 127.0.0.1]
   -t, --token <token>  Require "Authorization: Bearer <token>" on every route
                        (env PM2_FORWARDER_TOKEN)
+      --tunnel         Expose the API over a Cloudflare quick tunnel (guest URL)
+                       (env PM2_FORWARDER_TUNNEL)
+      --cf-token <t>   Run an authenticated Cloudflare named tunnel with this token
+                       (env CLOUDFLARED_TOKEN); implies --tunnel
   -h, --help           Show this help
   -v, --version        Show version
 
 SECURITY
   Binds to 127.0.0.1 (localhost) by default. Use --host 0.0.0.0 to expose it on
   your network — only do that together with --token, since the API can stop and
-  delete processes.
+  delete processes. Tunneling exposes the API publicly; if no --token is set a
+  bearer token is auto-generated and printed so the URL is never left open.
 
 EXAMPLES
   npx pm2-forwarder
   npx pm2-forwarder --port 8080
   npx pm2-forwarder --host 0.0.0.0 --token "$(openssl rand -hex 16)"
+  npx pm2-forwarder --tunnel
+  npx pm2-forwarder --cf-token "$CLOUDFLARED_TOKEN"
 `;
 
 function fail(message) {
@@ -42,6 +49,8 @@ try {
       port: { type: "string", short: "p" },
       host: { type: "string", short: "H" },
       token: { type: "string", short: "t" },
+      tunnel: { type: "boolean" },
+      "cf-token": { type: "string" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },
@@ -71,6 +80,25 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
 const host = values.host ?? process.env.PM2_FORWARDER_HOST ?? "127.0.0.1";
 const token = values.token ?? process.env.PM2_FORWARDER_TOKEN;
 
-startServer({ port, host, token: token || undefined }).catch((err) => {
+const isTruthy = (v) =>
+  v != null && v !== "" && v !== "0" && String(v).toLowerCase() !== "false";
+
+// CF token: CLI flag, then the conventional CLOUDFLARED_TOKEN, then namespaced.
+const cfToken =
+  values["cf-token"] ??
+  process.env.CLOUDFLARED_TOKEN ??
+  process.env.PM2_FORWARDER_CF_TOKEN;
+// Tunneling is on when explicitly requested or when a CF token is present.
+const tunnelEnabled =
+  Boolean(values.tunnel) ||
+  isTruthy(cfToken) ||
+  isTruthy(process.env.PM2_FORWARDER_TUNNEL);
+
+startServer({
+  port,
+  host,
+  token: token || undefined,
+  tunnel: { enabled: tunnelEnabled, cfToken: cfToken || undefined },
+}).catch((err) => {
   fail(`pm2-forwarder: failed to start — ${err.message}`);
 });

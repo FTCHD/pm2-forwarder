@@ -21,7 +21,9 @@
   "config": {
     "PM2_FORWARDER_PORT": 9616,
     "PM2_FORWARDER_HOST": "127.0.0.1",
-    "PM2_FORWARDER_TOKEN": ""
+    "PM2_FORWARDER_TOKEN": "",
+    "PM2_FORWARDER_TUNNEL": "",
+    "CLOUDFLARED_TOKEN": ""
   },
   "files": [
     "bin/",
@@ -59,6 +61,7 @@
   "homepage": "https://github.com/FTCHD/pm2-forwarder#readme",
   "dependencies": {
     "@hono/node-server": "^2.0.4",
+    "cloudflared": "^0.7.1",
     "hono": "^4.12.25",
     "pm2": "^7.0.1"
   }
