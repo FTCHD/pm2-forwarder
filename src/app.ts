@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { streamSSE } from "hono/streaming";
+import { validator } from "hono/validator";
 import pm2 from "pm2";
 
 import { name as pkgName, version as pkgVersion } from "./version";
@@ -248,31 +249,47 @@ export function createApp({
     })
     // GET `/processes/:id/logs` — tail recent stdout/stderr for one process.
     // Query: `lines` (1–5000, default 200), `type` (`out` | `err` | `all`, default `all`).
-    .get("/processes/:id/logs", async (c) => {
-      try {
-        const id = c.req.param("id");
-        const desc = await pm2Call(
-          "describe",
-          isNaN(Number(id)) ? id : Number(id),
-        );
-        if (!desc || desc.length === 0) {
-          return c.json({ error: "Process not found" }, 404);
+    .get(
+      "/processes/:id/logs",
+      validator("query", (value) => {
+        const raw = value as Record<string, string | string[] | undefined>;
+        const out: { lines?: string; type?: "out" | "err" | "all" } = {};
+        if (typeof raw.lines === "string") out.lines = raw.lines;
+        // Narrow the client to the known values. An empty value means "unset"
+        // (→ all, as the JS `query("type") || "all"` did); any other out-of-range
+        // `type` passes through and yields empty logs below, also matching the JS.
+        if (typeof raw.type === "string" && raw.type !== "") {
+          out.type = raw.type.toLowerCase() as "out" | "err" | "all";
         }
-        const env = desc[0].pm2_env || {};
-        const lines = clampInt(c.req.query("lines"), 200, 1, 5000);
-        const type = (c.req.query("type") || "all").toLowerCase();
-        const data: Logs = { name: desc[0].name, pm_id: desc[0].pm_id, lines };
-        if (type === "out" || type === "all") {
-          data.out = await tailLines(env.pm_out_log_path, lines);
+        return out;
+      }),
+      async (c) => {
+        try {
+          const id = c.req.param("id");
+          const desc = await pm2Call(
+            "describe",
+            isNaN(Number(id)) ? id : Number(id),
+          );
+          if (!desc || desc.length === 0) {
+            return c.json({ error: "Process not found" }, 404);
+          }
+          const env = desc[0].pm2_env || {};
+          const q = c.req.valid("query");
+          const lines = clampInt(q.lines, 200, 1, 5000);
+          const type = q.type ?? "all";
+          const data: Logs = { name: desc[0].name, pm_id: desc[0].pm_id, lines };
+          if (type === "out" || type === "all") {
+            data.out = await tailLines(env.pm_out_log_path, lines);
+          }
+          if (type === "err" || type === "all") {
+            data.err = await tailLines(env.pm_err_log_path, lines);
+          }
+          return c.json({ data });
+        } catch (err) {
+          return c.json({ error: (err as Error).message }, 500);
         }
-        if (type === "err" || type === "all") {
-          data.err = await tailLines(env.pm_err_log_path, lines);
-        }
-        return c.json({ data });
-      } catch (err) {
-        return c.json({ error: (err as Error).message }, 500);
-      }
-    })
+      },
+    )
     // GET `/processes/:id/logs/stream` — live stdout/stderr as Server-Sent Events.
     .get("/processes/:id/logs/stream", async (c) => {
       const id = c.req.param("id");
@@ -400,39 +417,51 @@ export function createApp({
       }
     })
     // POST `/processes/:name/scale` — set cluster instance count; body `{ instances }`.
-    .post("/processes/:name/scale", async (c) => {
-      try {
-        const body = await readJson(c);
-        const instances = Number(body.instances);
+    .post(
+      "/processes/:name/scale",
+      validator("json", (value, c) => {
+        const instances = Number(((value ?? {}) as { instances?: unknown }).instances);
         if (!Number.isInteger(instances) || instances < 1) {
           return c.json(
             { error: "Body must include an integer 'instances' >= 1" },
             400,
           );
         }
-        await pm2Call("scale", c.req.param("name"), instances);
-        return c.json({ data: { message: `scaled to ${instances}` } });
-      } catch (err) {
-        return c.json({ error: (err as Error).message }, statusForError(err));
-      }
-    })
+        return { instances };
+      }),
+      async (c) => {
+        try {
+          const { instances } = c.req.valid("json");
+          await pm2Call("scale", c.req.param("name"), instances);
+          return c.json({ data: { message: `scaled to ${instances}` } });
+        } catch (err) {
+          return c.json({ error: (err as Error).message }, statusForError(err));
+        }
+      },
+    )
     // POST `/processes/:name/signal` — send an OS signal; body `{ signal }`.
-    .post("/processes/:name/signal", async (c) => {
-      try {
-        const body = await readJson(c);
-        const signal = body.signal;
+    .post(
+      "/processes/:name/signal",
+      validator("json", (value, c) => {
+        const signal = ((value ?? {}) as { signal?: unknown }).signal;
         if (!signal || typeof signal !== "string") {
           return c.json(
             { error: "Body must include a 'signal' string (e.g. SIGUSR2)" },
             400,
           );
         }
-        await pm2Call("sendSignalToProcessName", signal, c.req.param("name"));
-        return c.json({ data: { message: `sent ${signal}` } });
-      } catch (err) {
-        return c.json({ error: (err as Error).message }, statusForError(err));
-      }
-    })
+        return { signal };
+      }),
+      async (c) => {
+        try {
+          const { signal } = c.req.valid("json");
+          await pm2Call("sendSignalToProcessName", signal, c.req.param("name"));
+          return c.json({ data: { message: `sent ${signal}` } });
+        } catch (err) {
+          return c.json({ error: (err as Error).message }, statusForError(err));
+        }
+      },
+    )
     // POST `/processes/:name/flush` — clear the process's log files.
     .post("/processes/:name/flush", async (c) => {
       try {
