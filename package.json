@@ -1,0 +1,65 @@
+{
+  "name": "pm2-forwarder",
+  "version": "0.1.0",
+  "description": "Tiny zero-config REST API that forwards PM2 process control (list/restart/stop/reload/delete) over HTTP. Run with npx.",
+  "type": "module",
+  "bin": {
+    "pm2-forwarder": "bin/cli.js"
+  },
+  "main": "src/index.js",
+  "apps": [
+    {
+      "name": "pm2-forwarder",
+      "script": "src/index.js"
+    }
+  ],
+  "exports": {
+    ".": "./src/index.js",
+    "./app": "./src/app.js",
+    "./server": "./src/server.js"
+  },
+  "config": {
+    "PM2_FORWARDER_PORT": 9616,
+    "PM2_FORWARDER_HOST": "127.0.0.1",
+    "PM2_FORWARDER_TOKEN": ""
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node bin/cli.js",
+    "prepublishOnly": "npm pack --dry-run"
+  },
+  "keywords": [
+    "pm2",
+    "process-manager",
+    "rest",
+    "api",
+    "cli",
+    "hono",
+    "forwarder",
+    "devops",
+    "npx"
+  ],
+  "license": "MIT",
+  "author": "FTCHD",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FTCHD/pm2-forwarder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/FTCHD/pm2-forwarder/issues"
+  },
+  "homepage": "https://github.com/FTCHD/pm2-forwarder#readme",
+  "dependencies": {
+    "@hono/node-server": "^2.0.4",
+    "hono": "^4.12.25",
+    "pm2": "^7.0.1"
+  }
+}
