@@ -10,7 +10,7 @@
   "apps": [
     {
       "name": "pm2-forwarder",
-      "script": "src/index.js"
+      "script": "src/pm2-module.js"
     }
   ],
   "exports": {

@@ -5,9 +5,10 @@ import { startServer } from "./server.js";
 export { createApp } from "./app.js";
 export { startServer } from "./server.js";
 
-// When PM2 runs this package as a module (`pm2 install pm2-forwarder`), it
-// executes this file as the process entry. Configuration comes from env vars,
-// which PM2 populates from the package.json `config` block and `pm2 set`.
+// Auto-start only when this file is run directly (`node src/index.js`). PM2
+// modules use src/pm2-module.js (PM2 runs modules through a wrapper, so this
+// argv[1] check is false there); library importers get the exports above with
+// no server started.
 const isMain =
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href;
