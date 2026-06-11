@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 
-import { startServer } from "../src/server.js";
-import { version } from "../src/version.js";
+import { startServer } from "./server";
+import { version } from "./version";
 
 const HELP = `pm2-forwarder v${version}
 
@@ -37,12 +37,20 @@ EXAMPLES
   npx pm2-forwarder --cf-token "$CLOUDFLARED_TOKEN"
 `;
 
-function fail(message) {
+function fail(message: string): never {
   console.error(message);
   process.exit(1);
 }
 
-let values;
+let values: {
+  port?: string;
+  host?: string;
+  token?: string;
+  tunnel?: boolean;
+  "cf-token"?: string;
+  help?: boolean;
+  version?: boolean;
+};
 try {
   ({ values } = parseArgs({
     options: {
@@ -57,7 +65,7 @@ try {
     allowPositionals: false,
   }));
 } catch (err) {
-  fail(`pm2-forwarder: ${err.message}\n\n${HELP}`);
+  fail(`pm2-forwarder: ${(err as Error).message}\n\n${HELP}`);
 }
 
 if (values.help) {
@@ -80,7 +88,7 @@ if (!Number.isInteger(port) || port < 0 || port > 65535) {
 const host = values.host ?? process.env.PM2_FORWARDER_HOST ?? "127.0.0.1";
 const token = values.token ?? process.env.PM2_FORWARDER_TOKEN;
 
-const isTruthy = (v) =>
+const isTruthy = (v: string | undefined) =>
   v != null && v !== "" && v !== "0" && String(v).toLowerCase() !== "false";
 
 // CF token: CLI flag, then the conventional CLOUDFLARED_TOKEN, then namespaced.
@@ -99,6 +107,6 @@ startServer({
   host,
   token: token || undefined,
   tunnel: { enabled: tunnelEnabled, cfToken: cfToken || undefined },
-}).catch((err) => {
-  fail(`pm2-forwarder: failed to start — ${err.message}`);
+}).catch((err: unknown) => {
+  fail(`pm2-forwarder: failed to start — ${(err as Error).message}`);
 });

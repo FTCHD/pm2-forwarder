@@ -1,18 +1,31 @@
 import { existsSync } from "node:fs";
 
+export interface TunnelHandle {
+  url: string | null;
+  mode: "quick" | "named";
+  connected: boolean;
+  stop: () => void;
+}
+
 // Resolve the first of `successEvent` (returning its value) or end early on
 // `exit`/`error`/timeout (returning null). Avoids hanging when cloudflared dies
-// before it ever emits a URL or connection.
-function waitFor(tunnel, successEvent, timeoutMs) {
+// before it ever emits a URL or connection. The tunnel is an EventEmitter whose
+// per-event listener types don't unify here, so it's typed loosely.
+function waitFor(
+  // biome-ignore lint/suspicious/noExplicitAny: event-emitter glue
+  tunnel: any,
+  successEvent: "url" | "connected",
+  timeoutMs: number,
+): Promise<unknown> {
   return new Promise((resolve) => {
-    const finish = (value) => {
+    const finish = (value: unknown) => {
       clearTimeout(timer);
       tunnel.off(successEvent, onSuccess);
       tunnel.off("exit", onEnd);
       tunnel.off("error", onEnd);
       resolve(value);
     };
-    const onSuccess = (value) => finish(value);
+    const onSuccess = (value: unknown) => finish(value);
     const onEnd = () => finish(null);
     const timer = setTimeout(() => finish(null), timeoutMs);
     timer.unref?.();
@@ -29,23 +42,26 @@ function waitFor(tunnel, successEvent, timeoutMs) {
  * - With token → authenticated named tunnel; its public hostname → origin mapping
  *   is configured in the Cloudflare Zero Trust dashboard (point it at
  *   `http://localhost:<port>`). `--url` cannot be combined with `--token`.
- *
- * @param {object} opts
- * @param {number} opts.port Local port the forwarder listens on.
- * @param {string} [opts.cfToken] Cloudflare tunnel token (enables authed mode).
- * @returns {Promise<{ url: string|null, mode: "quick"|"named", connected: boolean, stop: () => void }>}
  */
-export async function startTunnel({ port, cfToken }) {
+export async function startTunnel({
+  port,
+  cfToken,
+}: {
+  port: number;
+  cfToken?: string;
+}): Promise<TunnelHandle> {
   const { Tunnel, bin, install } = await import("cloudflared");
 
   // The npm package downloads the binary in a postinstall, but that can be
   // skipped (e.g. `npm install --ignore-scripts`). Fetch it on demand.
   if (!existsSync(bin)) {
-    console.error("pm2-forwarder: downloading the cloudflared binary (first run)…");
+    console.error(
+      "pm2-forwarder: downloading the cloudflared binary (first run)…",
+    );
     await install(bin);
   }
 
-  const mode = cfToken ? "named" : "quick";
+  const mode: "quick" | "named" = cfToken ? "named" : "quick";
   const tunnel = cfToken
     ? Tunnel.withToken(cfToken, { "--no-autoupdate": true })
     : Tunnel.quick(`http://127.0.0.1:${port}`, { "--no-autoupdate": true });
@@ -63,7 +79,10 @@ export async function startTunnel({ port, cfToken }) {
 
   // Guest tunnels advertise a public URL; named tunnels do not (the hostname
   // lives in the dashboard), so only wait on the URL for quick mode.
-  const url = mode === "quick" ? await waitFor(tunnel, "url", 30_000) : null;
+  const url =
+    mode === "quick"
+      ? ((await waitFor(tunnel, "url", 30_000)) as string | null)
+      : null;
   const connection = await waitFor(tunnel, "connected", 30_000);
 
   return {

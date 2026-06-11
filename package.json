@@ -4,19 +4,20 @@
   "description": "Tiny zero-config REST API that forwards PM2 process control (list/restart/stop/reload/delete) over HTTP. Run with npx.",
   "type": "module",
   "bin": {
-    "pm2-forwarder": "bin/cli.js"
+    "pm2-forwarder": "dist/cli.js"
   },
-  "main": "src/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "apps": [
     {
       "name": "pm2-forwarder",
-      "script": "src/pm2-module.js"
+      "script": "dist/pm2-module.js"
     }
   ],
   "exports": {
-    ".": "./src/index.js",
-    "./app": "./src/app.js",
-    "./server": "./src/server.js"
+    ".": "./dist/index.js",
+    "./app": "./dist/app.js",
+    "./server": "./dist/server.js"
   },
   "config": {
     "PM2_FORWARDER_PORT": 9616,
@@ -26,8 +27,7 @@
     "CLOUDFLARED_TOKEN": ""
   },
   "files": [
-    "bin/",
-    "src/",
+    "dist",
     "README.md",
     "LICENSE"
   ],
@@ -35,8 +35,10 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "node bin/cli.js",
-    "prepublishOnly": "npm pack --dry-run"
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/cli.js",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "pm2",
@@ -64,5 +66,10 @@
     "cloudflared": "^0.7.1",
     "hono": "^4.12.25",
     "pm2": "^7.0.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "tsup": "^8.5.0",
+    "@types/node": "^22.15.18"
   }
 }

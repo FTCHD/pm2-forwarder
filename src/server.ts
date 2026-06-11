@@ -1,13 +1,20 @@
 import { randomBytes } from "node:crypto";
 
-import { serve } from "@hono/node-server";
+import { serve, type ServerType } from "@hono/node-server";
 import pm2 from "pm2";
 
-import { createApp } from "./app.js";
-import { startTunnel } from "./tunnel.js";
-import { name as pkgName, version } from "./version.js";
+import { createApp, type Pm2Call } from "./app";
+import { startTunnel, type TunnelHandle } from "./tunnel";
+import { name as pkgName, version } from "./version";
 
-function connectPm2() {
+export interface StartServerOptions {
+  port?: number;
+  host?: string;
+  token?: string;
+  tunnel?: { enabled?: boolean; cfToken?: string };
+}
+
+function connectPm2(): Promise<void> {
   return new Promise((resolve, reject) => {
     pm2.connect((err) => (err ? reject(err) : resolve()));
   });
@@ -15,34 +22,28 @@ function connectPm2() {
 
 // Caller bound to the already-open connection from connectPm2(). No connect/
 // disconnect per request, so concurrent requests can't tear down each other's
-// connection mid-call.
-function makePm2Call() {
+// connection mid-call. pm2 exposes named methods (no index signature), so the
+// dynamic-by-name lookup is cast.
+function makePm2Call(): Pm2Call {
   return (method, ...args) =>
     new Promise((resolve, reject) => {
-      pm2[method](...args, (err, result) =>
-        err ? reject(err) : resolve(result),
+      (pm2 as unknown as Record<string, (...a: any[]) => void>)[method](
+        ...args,
+        (err: Error | null, result: unknown) =>
+          err ? reject(err) : resolve(result),
       );
     });
 }
 
 /**
  * Connect to the local PM2 daemon and start the HTTP forwarder.
- *
- * @param {object} [options]
- * @param {number} [options.port=9616]
- * @param {string} [options.host="127.0.0.1"]
- * @param {string} [options.token] Optional bearer token required on every route.
- * @param {object} [options.tunnel] Cloudflare Tunnel options.
- * @param {boolean} [options.tunnel.enabled] Start a tunnel after the server is up.
- * @param {string} [options.tunnel.cfToken] Cloudflare tunnel token (authed mode).
- * @returns {Promise<import("@hono/node-server").ServerType>}
  */
 export async function startServer({
   port = 9616,
   host = "127.0.0.1",
   token,
   tunnel = {},
-} = {}) {
+}: StartServerOptions = {}): Promise<ServerType> {
   await connectPm2();
 
   // A tunnel makes the API reachable from the internet, so never leave it open:
@@ -56,23 +57,20 @@ export async function startServer({
 
   const app = createApp({ pm2Call: makePm2Call(), token: activeToken, version });
 
-  const server = serve(
-    { fetch: app.fetch, port, hostname: host },
-    (info) => {
-      const auth = activeToken ? "enabled (bearer token)" : "disabled";
-      console.log(
-        `${pkgName} v${version} → http://${info.address}:${info.port}  (auth: ${auth})`,
+  const server = serve({ fetch: app.fetch, port, hostname: host }, (info) => {
+    const auth = activeToken ? "enabled (bearer token)" : "disabled";
+    console.log(
+      `${pkgName} v${version} → http://${info.address}:${info.port}  (auth: ${auth})`,
+    );
+    if (host === "0.0.0.0" && !activeToken) {
+      console.error(
+        "WARNING: bound to all interfaces without a token — anyone on your " +
+          "network can control PM2. Pass --token to require authentication.",
       );
-      if (host === "0.0.0.0" && !activeToken) {
-        console.error(
-          "WARNING: bound to all interfaces without a token — anyone on your " +
-            "network can control PM2. Pass --token to require authentication.",
-        );
-      }
-    },
-  );
+    }
+  });
 
-  let tunnelHandle = null;
+  let tunnelHandle: TunnelHandle | null = null;
   if (tunnel.enabled) {
     try {
       tunnelHandle = await startTunnel({ port, cfToken: tunnel.cfToken });
@@ -97,7 +95,7 @@ export async function startServer({
       }
     } catch (err) {
       console.error(
-        `pm2-forwarder: failed to start tunnel — ${err.message}. Continuing to serve locally.`,
+        `pm2-forwarder: failed to start tunnel — ${(err as Error).message}. Continuing to serve locally.`,
       );
     }
   }
