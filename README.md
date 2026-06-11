@@ -106,6 +106,8 @@ pm2-forwarder --cf-token "$CLOUDFLARED_TOKEN"
 
 For a named tunnel the public hostname → origin mapping lives in the Cloudflare Zero Trust dashboard; point its ingress at `http://localhost:9616` (or whatever `--port` you use). A CF token implies `--tunnel`, so you don't need both.
 
+Live log streaming (`GET /processes/:id/logs/stream`, SSE) works locally and over **named** tunnels, but not over guest `trycloudflare.com` tunnels, which don't support Server-Sent Events.
+
 ## API
 
 All responses are JSON: `{ "data": ... }` on success, `{ "error": "..." }` on failure. Examples assume the default `http://127.0.0.1:9616`.
@@ -114,6 +116,9 @@ All responses are JSON: `{ "data": ... }` on success, `{ "error": "..." }` on fa
 # Liveness — does not touch PM2
 curl http://127.0.0.1:9616/health
 
+# Dashboard rollup — counts by status, total cpu/memory, pm2 version
+curl http://127.0.0.1:9616/summary
+
 # List all processes
 curl http://127.0.0.1:9616/processes
 
@@ -121,11 +126,34 @@ curl http://127.0.0.1:9616/processes
 curl http://127.0.0.1:9616/processes/api
 curl http://127.0.0.1:9616/processes/0
 
+# Tail logs (last 200 lines of stdout+stderr by default)
+curl "http://127.0.0.1:9616/processes/api/logs?lines=100&type=err"
+
+# Stream logs live as Server-Sent Events (Ctrl-C to stop)
+curl -N "http://127.0.0.1:9616/processes/api/logs/stream"
+
 # Control a process
 curl -X POST   http://127.0.0.1:9616/processes/api/restart
 curl -X POST   http://127.0.0.1:9616/processes/api/stop
 curl -X POST   http://127.0.0.1:9616/processes/api/reload
 curl -X DELETE http://127.0.0.1:9616/processes/api
+
+# Restart re-reading environment variables
+curl -X POST http://127.0.0.1:9616/processes/api/restart \
+  -H 'content-type: application/json' -d '{"updateEnv":true}'
+
+# Scale a cluster app, send a signal, flush logs, reset counters
+curl -X POST http://127.0.0.1:9616/processes/api/scale  -H 'content-type: application/json' -d '{"instances":4}'
+curl -X POST http://127.0.0.1:9616/processes/api/signal -H 'content-type: application/json' -d '{"signal":"SIGUSR2"}'
+curl -X POST http://127.0.0.1:9616/processes/api/flush
+curl -X POST http://127.0.0.1:9616/processes/api/reset
+
+# Save the current process list / restore it later (survives reboot)
+curl -X POST http://127.0.0.1:9616/dump
+curl -X POST http://127.0.0.1:9616/resurrect
+
+# Apply any action to every process with the "all" target
+curl -X POST http://127.0.0.1:9616/processes/all/restart
 
 # With auth enabled (--token secret123)
 curl -H "Authorization: Bearer secret123" http://127.0.0.1:9616/processes
@@ -134,14 +162,23 @@ curl -H "Authorization: Bearer secret123" http://127.0.0.1:9616/processes
 | Method | Path | Description | Codes |
 | --- | --- | --- | --- |
 | GET | `/` and `/health` | Service info / liveness | 200 |
+| GET | `/summary` | Counts by status, total cpu/memory, pm2 version | 200, 500 |
 | GET | `/processes` | List processes with status, cpu, memory, uptime, restarts | 200, 500 |
 | GET | `/processes/:id` | Describe one process by name or `pm_id` | 200, 404, 500 |
-| POST | `/processes/:name/restart` | Restart | 200, 404, 500 |
+| GET | `/processes/:id/logs` | Tail stdout/stderr — `?lines=` (1–5000), `?type=out\|err\|all` | 200, 404, 500 |
+| GET | `/processes/:id/logs/stream` | Live logs via SSE — `?type=out\|err\|all`; events `out`/`err`/`ping` | 200, 404, 500 |
+| POST | `/processes/:name/restart` | Restart — optional body `{"updateEnv":true}` | 200, 404, 500 |
 | POST | `/processes/:name/stop` | Stop | 200, 404, 500 |
-| POST | `/processes/:name/reload` | Reload (zero-downtime) | 200, 404, 500 |
+| POST | `/processes/:name/reload` | Reload (zero-downtime) — optional `{"updateEnv":true}` | 200, 404, 500 |
+| POST | `/processes/:name/scale` | Scale a cluster app — body `{"instances":<int>}` | 200, 400, 404, 500 |
+| POST | `/processes/:name/signal` | Send a signal — body `{"signal":"SIGUSR2"}` | 200, 400, 404, 500 |
+| POST | `/processes/:name/flush` | Clear the process's log files | 200, 404, 500 |
+| POST | `/processes/:name/reset` | Reset restart counters/metadata | 200, 404, 500 |
 | DELETE | `/processes/:name` | Delete from PM2 | 200, 404, 500 |
+| POST | `/dump` | Save the process list (persists across reboot) | 200, 500 |
+| POST | `/resurrect` | Restore the process list saved by `/dump` | 200, 500 |
 
-When a token is configured, any request without a valid `Authorization: Bearer <token>` header gets `401`.
+The `:name` control routes also accept `all` to target every process (e.g. `POST /processes/all/restart`). When a token is configured, any request without a valid `Authorization: Bearer <token>` header gets `401`.
 
 ## License
 
