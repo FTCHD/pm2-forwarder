@@ -36,8 +36,11 @@
     "scripts": {
         "build": "tsup",
         "typecheck": "tsc --noEmit",
+        "lint": "biome check",
+        "lint:fix": "biome check --write",
         "start": "node dist/cli.js",
         "prepublishOnly": "npm run build",
+        "release": "npm run build && npm publish"
     },
     "keywords": [
         "pm2",
