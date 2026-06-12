@@ -7,28 +7,25 @@
 // index.ts) false under PM2 — so a guarded start would never run and PM2 would
 // restart-loop the process forever. This entry just always starts the server,
 // reading config from the env vars PM2 injects (package.json `config` + `pm2 set`).
-import { startServer } from "./server";
+import { startServer } from '@/server'
 
 const truthy = (v: string | undefined) =>
-  v != null && v !== "" && v !== "0" && String(v).toLowerCase() !== "false";
+    v != null && v !== '' && v !== '0' && String(v).toLowerCase() !== 'false'
 
-const port = Number(process.env.PM2_FORWARDER_PORT ?? process.env.PORT ?? 9616);
-const host = process.env.PM2_FORWARDER_HOST || "127.0.0.1";
-const token = process.env.PM2_FORWARDER_TOKEN || undefined;
-const cfToken =
-  process.env.CLOUDFLARED_TOKEN ||
-  process.env.PM2_FORWARDER_CF_TOKEN ||
-  undefined;
+const port = Number(process.env.PM2_FORWARDER_PORT ?? process.env.PORT ?? 9616)
+const host = process.env.PM2_FORWARDER_HOST || '127.0.0.1'
+const token = process.env.PM2_FORWARDER_TOKEN || undefined
+const cfToken = process.env.CLOUDFLARED_TOKEN || process.env.PM2_FORWARDER_CF_TOKEN || undefined
 
 startServer({
-  port,
-  host,
-  token,
-  tunnel: {
-    enabled: truthy(process.env.PM2_FORWARDER_TUNNEL) || truthy(cfToken),
-    cfToken,
-  },
+    port,
+    host,
+    token,
+    tunnel: {
+        enabled: truthy(process.env.PM2_FORWARDER_TUNNEL) || truthy(cfToken),
+        cfToken,
+    },
 }).catch((err: unknown) => {
-  console.error((err && (err as Error).stack) || err);
-  process.exit(1);
-});
+    console.error((err && (err as Error).stack) || err)
+    process.exit(1)
+})

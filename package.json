@@ -1,75 +1,75 @@
 {
-  "name": "pm2-forwarder",
-  "version": "0.2.0",
-  "description": "Tiny zero-config REST API that forwards PM2 process control (list/restart/stop/reload/delete) over HTTP. Run with npx.",
-  "type": "module",
-  "bin": {
-    "pm2-forwarder": "dist/cli.js"
-  },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "apps": [
-    {
-      "name": "pm2-forwarder",
-      "script": "dist/pm2-module.js"
+    "name": "pm2-forwarder",
+    "description": "Tiny zero-config REST API that forwards PM2 process control (list/restart/stop/reload/delete) over HTTP. Run with npx.",
+    "type": "module",
+    "bin": {
+        "pm2-forwarder": "dist/cli.js"
+    },
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "apps": [
+        {
+            "name": "pm2-forwarder",
+            "script": "dist/pm2-module.js"
+        }
+    ],
+    "exports": {
+        ".": "./dist/index.js",
+        "./app": "./dist/app.js",
+        "./server": "./dist/server.js"
+    },
+    "config": {
+        "PM2_FORWARDER_PORT": 9616,
+        "PM2_FORWARDER_HOST": "127.0.0.1",
+        "PM2_FORWARDER_TOKEN": "",
+        "PM2_FORWARDER_TUNNEL": "",
+        "CLOUDFLARED_TOKEN": ""
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "engines": {
+        "node": ">=18"
+    },
+    "scripts": {
+        "build": "tsup",
+        "typecheck": "tsc --noEmit",
+        "start": "node dist/cli.js",
+        "prepublishOnly": "npm run build",
+    },
+    "keywords": [
+        "pm2",
+        "process-manager",
+        "rest",
+        "api",
+        "cli",
+        "hono",
+        "forwarder",
+        "devops",
+        "npx"
+    ],
+    "license": "MIT",
+    "author": "FTCHD",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/FTCHD/pm2-forwarder.git"
+    },
+    "bugs": {
+        "url": "https://github.com/FTCHD/pm2-forwarder/issues"
+    },
+    "homepage": "https://github.com/FTCHD/pm2-forwarder#readme",
+    "dependencies": {
+        "@hono/node-server": "^2.0.4",
+        "cloudflared": "^0.7.1",
+        "hono": "^4.12.25",
+        "pm2": "^7.0.1"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.4.16",
+        "@types/node": "^22.15.18",
+        "tsup": "^8.5.0",
+        "typescript": "^5.8.3"
     }
-  ],
-  "exports": {
-    ".": "./dist/index.js",
-    "./app": "./dist/app.js",
-    "./server": "./dist/server.js"
-  },
-  "config": {
-    "PM2_FORWARDER_PORT": 9616,
-    "PM2_FORWARDER_HOST": "127.0.0.1",
-    "PM2_FORWARDER_TOKEN": "",
-    "PM2_FORWARDER_TUNNEL": "",
-    "CLOUDFLARED_TOKEN": ""
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "engines": {
-    "node": ">=18"
-  },
-  "scripts": {
-    "build": "tsup",
-    "typecheck": "tsc --noEmit",
-    "start": "node dist/cli.js",
-    "prepublishOnly": "npm run build"
-  },
-  "keywords": [
-    "pm2",
-    "process-manager",
-    "rest",
-    "api",
-    "cli",
-    "hono",
-    "forwarder",
-    "devops",
-    "npx"
-  ],
-  "license": "MIT",
-  "author": "FTCHD",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/FTCHD/pm2-forwarder.git"
-  },
-  "bugs": {
-    "url": "https://github.com/FTCHD/pm2-forwarder/issues"
-  },
-  "homepage": "https://github.com/FTCHD/pm2-forwarder#readme",
-  "dependencies": {
-    "@hono/node-server": "^2.0.4",
-    "cloudflared": "^0.7.1",
-    "hono": "^4.12.25",
-    "pm2": "^7.0.1"
-  },
-  "devDependencies": {
-    "typescript": "^5.8.3",
-    "tsup": "^8.5.0",
-    "@types/node": "^22.15.18"
-  }
 }

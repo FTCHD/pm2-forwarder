@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-import { parseArgs } from "node:util";
-
-import { startServer } from "./server";
-import { version } from "./version";
+import { parseArgs } from 'node:util'
+import { startServer } from '@/server'
+import { version } from '@/version'
 
 const HELP = `pm2-forwarder v${version}
 
@@ -35,78 +34,73 @@ EXAMPLES
   npx pm2-forwarder --host 0.0.0.0 --token "$(openssl rand -hex 16)"
   npx pm2-forwarder --tunnel
   npx pm2-forwarder --cf-token "$CLOUDFLARED_TOKEN"
-`;
+`
 
 function fail(message: string): never {
-  console.error(message);
-  process.exit(1);
+    console.error(message)
+    process.exit(1)
 }
 
 let values: {
-  port?: string;
-  host?: string;
-  token?: string;
-  tunnel?: boolean;
-  "cf-token"?: string;
-  help?: boolean;
-  version?: boolean;
-};
+    port?: string
+    host?: string
+    token?: string
+    tunnel?: boolean
+    'cf-token'?: string
+    help?: boolean
+    version?: boolean
+}
 try {
-  ({ values } = parseArgs({
-    options: {
-      port: { type: "string", short: "p" },
-      host: { type: "string", short: "H" },
-      token: { type: "string", short: "t" },
-      tunnel: { type: "boolean" },
-      "cf-token": { type: "string" },
-      help: { type: "boolean", short: "h" },
-      version: { type: "boolean", short: "v" },
-    },
-    allowPositionals: false,
-  }));
+    ;({ values } = parseArgs({
+        options: {
+            port: { type: 'string', short: 'p' },
+            host: { type: 'string', short: 'H' },
+            token: { type: 'string', short: 't' },
+            tunnel: { type: 'boolean' },
+            'cf-token': { type: 'string' },
+            help: { type: 'boolean', short: 'h' },
+            version: { type: 'boolean', short: 'v' },
+        },
+        allowPositionals: false,
+    }))
 } catch (err) {
-  fail(`pm2-forwarder: ${(err as Error).message}\n\n${HELP}`);
+    fail(`pm2-forwarder: ${(err as Error).message}\n\n${HELP}`)
 }
 
 if (values.help) {
-  console.log(HELP);
-  process.exit(0);
+    console.log(HELP)
+    process.exit(0)
 }
 if (values.version) {
-  console.log(version);
-  process.exit(0);
+    console.log(version)
+    process.exit(0)
 }
 
 // Precedence: CLI flag > PM2_FORWARDER_* env > generic PORT > default.
-const portRaw =
-  values.port ?? process.env.PM2_FORWARDER_PORT ?? process.env.PORT ?? "9616";
-const port = Number(portRaw);
+const portRaw = values.port ?? process.env.PM2_FORWARDER_PORT ?? process.env.PORT ?? '9616'
+const port = Number(portRaw)
 if (!Number.isInteger(port) || port < 0 || port > 65535) {
-  fail(`pm2-forwarder: invalid port "${portRaw}" (expected an integer 0-65535)`);
+    fail(`pm2-forwarder: invalid port "${portRaw}" (expected an integer 0-65535)`)
 }
 
-const host = values.host ?? process.env.PM2_FORWARDER_HOST ?? "127.0.0.1";
-const token = values.token ?? process.env.PM2_FORWARDER_TOKEN;
+const host = values.host ?? process.env.PM2_FORWARDER_HOST ?? '127.0.0.1'
+const token = values.token ?? process.env.PM2_FORWARDER_TOKEN
 
 const isTruthy = (v: string | undefined) =>
-  v != null && v !== "" && v !== "0" && String(v).toLowerCase() !== "false";
+    v != null && v !== '' && v !== '0' && String(v).toLowerCase() !== 'false'
 
 // CF token: CLI flag, then the conventional CLOUDFLARED_TOKEN, then namespaced.
 const cfToken =
-  values["cf-token"] ??
-  process.env.CLOUDFLARED_TOKEN ??
-  process.env.PM2_FORWARDER_CF_TOKEN;
+    values['cf-token'] ?? process.env.CLOUDFLARED_TOKEN ?? process.env.PM2_FORWARDER_CF_TOKEN
 // Tunneling is on when explicitly requested or when a CF token is present.
 const tunnelEnabled =
-  Boolean(values.tunnel) ||
-  isTruthy(cfToken) ||
-  isTruthy(process.env.PM2_FORWARDER_TUNNEL);
+    Boolean(values.tunnel) || isTruthy(cfToken) || isTruthy(process.env.PM2_FORWARDER_TUNNEL)
 
 startServer({
-  port,
-  host,
-  token: token || undefined,
-  tunnel: { enabled: tunnelEnabled, cfToken: cfToken || undefined },
+    port,
+    host,
+    token: token || undefined,
+    tunnel: { enabled: tunnelEnabled, cfToken: cfToken || undefined },
 }).catch((err: unknown) => {
-  fail(`pm2-forwarder: failed to start — ${(err as Error).message}`);
-});
+    fail(`pm2-forwarder: failed to start — ${(err as Error).message}`)
+})
